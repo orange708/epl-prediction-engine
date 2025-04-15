@@ -1,5 +1,8 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+import os
 import pandas as pd
 
 print("Loading EPL Prediction API...")
@@ -15,9 +18,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static directory
+app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+
 # Load once into memory
 DATA_PATH = "data/processed/simulated_season_history.csv"
 df = pd.read_csv(DATA_PATH)
+
+@app.get("/", response_class=HTMLResponse)
+def root():
+    index_path = os.path.join("backend", "static", "index.html")
+    with open(index_path, "r", encoding="utf-8") as f:
+        return f.read()
 
 @app.get("/standings")
 def get_standings(season: str = Query(..., description="Season in format YYYY/YYYY")):
@@ -36,7 +48,3 @@ def get_team_details(season: str, team: str):
     if team_data.empty:
         return {"error": "Team not found"}
     return team_data.iloc[0].to_dict()
-
-@app.get("/")
-def root():
-    return {"message": "Welcome to the EPL Prediction API!"}
