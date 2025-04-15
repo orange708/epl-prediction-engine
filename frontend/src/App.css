@@ -1,0 +1,70 @@
+body {
+  background-color: #111;
+  color: #fff;
+  font-family: "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.app-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.app-title {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.controls {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.main-content {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.table-section {
+  flex: 1;
+  min-width: 350px;
+}
+
+.standings-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.standings-table th,
+.standings-table td {
+  padding: 0.75rem;
+  border: 1px solid #333;
+  text-align: left;
+}
+
+.standings-table tr:hover {
+  background-color: #1e1e1e;
+  cursor: pointer;
+}
+
+.highlight {
+  background-color: #272727;
+}
+
+.team-details {
+  flex: 1;
+  min-width: 250px;
+  background-color: #1a1a1a;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #444;
+}
+
+.team-details h3 {
+  margin-top: 0;
+}
