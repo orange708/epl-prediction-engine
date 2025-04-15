@@ -161,17 +161,14 @@ def get_team_details(
 
         # Add and format additional fields for frontend
         enhance_team_data(data)
-
-        import requests
-
+        # Set up API details
         API_KEY = os.getenv("API_FOOTBALL_KEY")
         BASE_URL = "https://v3.football.api-sports.io"
-
         headers = {"x-apisports-key": API_KEY}
         team_name = data["Team"]
         season_year = season.split("/")[0]
-
-        # Get team ID
+ 
+        # Fetch team ID early before other API calls
         team_id = None
         try:
             team_search = requests.get(
@@ -254,79 +251,85 @@ def health_check():
     """Health check endpoint"""
     return {"status": "ok", "version": "1.0.0", "dataLoaded": df is not None}
 
+@app.get("/team-squad")
+def get_team_squad(team: str = Query(..., description="Team name")):
+    """Get full squad data for a team using API-Football"""
+    try:
+        API_KEY = os.getenv("API_FOOTBALL_KEY")
+        BASE_URL = "https://v3.football.api-sports.io"
+        headers = {"x-apisports-key": API_KEY}
+
+        # Step 1: Search for team ID
+        team_search = requests.get(
+            f"{BASE_URL}/teams",
+            params={"search": team},
+            headers=headers,
+            timeout=5
+        )
+        team_data = team_search.json()
+        if not team_data.get("response"):
+            raise HTTPException(status_code=404, detail="Team not found")
+
+        team_id = team_data["response"][0]["team"]["id"]
+
+        # Step 2: Fetch squad
+        squad_resp = requests.get(
+            f"{BASE_URL}/players/squads",
+            params={"team": team_id},
+            headers=headers,
+            timeout=5
+        )
+        squad_data = squad_resp.json().get("response", [])
+        if not squad_data:
+            raise HTTPException(status_code=404, detail="No squad data available")
+
+        players = squad_data[0].get("players", [])
+        formatted = [{
+            "name": p.get("name"),
+            "age": p.get("age"),
+            "number": p.get("number"),
+            "position": p.get("position"),
+            "nationality": p.get("nationality")
+        } for p in players]
+
+        return formatted
+
+    except Exception as e:
+        print(f"Error in get_team_squad: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 # Helper functions to generate dummy data
 def generate_dummy_standings():
-    """Generate dummy standings data when API's data source is unavailable"""
-    teams = [
-        "Man City", "Arsenal", "Liverpool", "Chelsea", "Man United", 
-        "Tottenham", "Aston Villa", "Newcastle", "West Ham", "Brighton",
-        "Brentford", "Wolves", "Crystal Palace", "Everton", "Nottingham Forest",
-        "Bournemouth", "Fulham", "Luton", "Burnley", "Sheffield United"
-    ]
-    
-    # Create more realistic points distribution
-    # Top teams score 70-90 points
-    # Mid-table teams score 45-65 points
-    # Bottom teams score 25-40 points
-    standings = []
-    
-    # Top 6 teams
-    for i in range(6):
-        base_points = 90 - (i * 4)  # 90, 86, 82, 78, 74, 70
-        variation = random.randint(-3, 3)
-        points = base_points + variation
-        win = int(points * 0.8 / 3)
-        draw = int(points * 0.2 / 1)
-        loss = 38 - win - draw
-        
-        standings.append({
-            "Team": teams[i],
-            "Points": points,
-            "Matches": 38,
-            "Win": win,
-            "Draw": draw,
-            "Loss": loss
-        })
-    
-    # Mid-table teams (7-14)
-    for i in range(6, 14):
-        base_points = 65 - ((i - 6) * 3)  # 65, 62, 59, 56, 53, 50, 47, 44
-        variation = random.randint(-2, 2)
-        points = base_points + variation
-        win = int(points * 0.8 / 3)
-        draw = int(points * 0.2 / 1)
-        loss = 38 - win - draw
-        
-        standings.append({
-            "Team": teams[i],
-            "Points": points,
-            "Matches": 38,
-            "Win": win,
-            "Draw": draw,
-            "Loss": loss
-        })
-    
-    # Bottom teams (15-20)
-    for i in range(14, 20):
-        base_points = 40 - ((i - 14) * 3)  # 40, 37, 34, 31, 28, 25
-        variation = random.randint(-2, 2)
-        points = base_points + variation
-        win = int(points * 0.8 / 3)
-        draw = int(points * 0.2 / 1)
-        loss = 38 - win - draw
-        
-        standings.append({
-            "Team": teams[i],
-            "Points": points,
-            "Matches": 38,
-            "Win": win,
-            "Draw": draw,
-            "Loss": loss
-        })
-    
-    # Sort by points
-    standings.sort(key=lambda x: x["Points"], reverse=True)
-    return standings
+    """Load predicted standings from simulated_season_history.csv"""
+    try:
+        df_simulated = pd.read_csv("data/processed/simulated_season_history.csv")
+        latest_season = sorted(df_simulated["Season"].unique())[-1]
+        standings = df_simulated[df_simulated["Season"] == latest_season].copy()
+
+        if "Win" not in standings.columns:
+            standings["Win"] = (standings["Points"] * 0.8 / 3).round().astype(int)
+        if "Draw" not in standings.columns:
+            standings["Draw"] = (standings["Points"] * 0.2 / 1).round().astype(int)
+        if "Loss" not in standings.columns:
+            standings["Loss"] = 38 - standings["Win"] - standings["Draw"]
+
+        standings = standings.sort_values(by="Points", ascending=False)
+
+        results = []
+        for idx, row in standings.iterrows():
+            results.append({
+                "Team": row["Team"],
+                "Points": row["Points"],
+                "Matches": 38,
+                "Win": row["Win"],
+                "Draw": row["Draw"],
+                "Loss": row["Loss"]
+            })
+
+        return results
+    except Exception as e:
+        print(f"Error loading simulated predictions: {e}")
+        return []
 
 def generate_dummy_team_data(team):
     """Generate dummy team data when API's data source is unavailable"""
