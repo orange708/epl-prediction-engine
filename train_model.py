@@ -58,7 +58,7 @@ features = [
     "ManagerRating", "TierScore", "RelegationRisk", "AvgPoints3Yrs", "PrevRank"
 ]
 X = df[features]
-y = df["FinalRank"]
+y = df["Points"]
 
 # Normalize features
 scaler = StandardScaler()
@@ -78,13 +78,13 @@ y_pred = model.predict(X_test)
 
 # Evaluate
 mae = mean_absolute_error(y_test, y_pred)
-print(f"Mean Absolute Error: {mae:.2f}")
+print(f"Mean Absolute Error (Points): {mae:.2f}")
 
 # Save model
 os.makedirs("models", exist_ok=True)
-joblib.dump(model, "models/final_rank_model.pkl")
-print("Model saved to models/final_rank_model.pkl")
+joblib.dump(model, "models/final_points_model.pkl")
+print("Model saved to models/final_points_model.pkl")
 
 # Save scaler
-joblib.dump(scaler, "models/final_rank_scaler.pkl")
-print("Scaler saved to models/final_rank_scaler.pkl")
+joblib.dump(scaler, "models/final_points_scaler.pkl")
+print("Scaler saved to models/final_points_scaler.pkl")

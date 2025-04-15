@@ -3,6 +3,35 @@ import axios from "axios";
 import "./App.css";
 import TeamView from "./components/TeamView";
 
+const logoMap = {
+  "Arsenal": "t3",
+  "Aston Villa": "t7",
+  "Bournemouth": "t91",
+  "Brentford": "t94",
+  "Brighton": "t36",
+  "Burnley": "t90",
+  "Chelsea": "t8",
+  "Crystal Palace": "t31",
+  "Everton": "t11",
+  "Fulham": "t54",
+  "Leicester": "t13",
+  "Liverpool": "t14",
+  "Luton": "t102",
+  "Man City": "t43",
+  "Man United": "t1",
+  "Newcastle": "t4",
+  "Nott'm Forest": "t17",
+  "Sheffield United": "t49",
+  "Tottenham": "t6",
+  "West Ham": "t21",
+  "Wolves": "t39"
+};
+
+const getTeamLogo = (teamName) => {
+  const code = logoMap[teamName];
+  return code ? `https://resources.premierleague.com/premierleague/badges/${code}.png` : "/placeholder-logo.png";
+};
+
 // Define the API base URL - update this if your backend is on a different port/host
 const API_BASE_URL = "http://127.0.0.1:8000";
 
@@ -188,7 +217,7 @@ function App() {
                       <td><span className="position">{rank}</span></td>
                       <td className="team-cell">
                         <img
-                          src={`https://logo.clearbit.com/${t.Team.replace(/\s+/g, "").toLowerCase()}.com`}
+                          src={getTeamLogo(t.Team)}
                           alt={`${t.Team} logo`}
                           className="club-logo"
                           onError={(e) => { e.target.src = "/placeholder-logo.png"; }}

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import PropTypes from "prop-types";
 
-function TeamView({ team, season, apiBaseUrl = "http://127.0.0.1:8000" }) {
+function TeamView({ team, season, apiBaseUrl = "" }) {
   const [teamData, setTeamData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
