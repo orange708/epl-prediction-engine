@@ -1,0 +1,61 @@
+.squad-view {
+  margin: 20px auto;
+  padding: 24px;
+  background-color: #f4f6f8;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-width: 900px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.squad-view h2 {
+  margin-bottom: 16px;
+  text-align: center;
+  color: #2c3e50;
+}
+
+.squad-view table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.squad-view th,
+.squad-view td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e1e4e8;
+}
+
+.squad-view th {
+  background-color: #f0f2f5;
+  color: #34495e;
+  font-weight: 600;
+}
+
+.squad-view tr:hover {
+  background-color: #f9fafc;
+}
+
+.squad-view td {
+  color: #2f3542;
+}
+
+.toggle-squad-btn {
+  display: block;
+  margin: 16px auto;
+  padding: 10px 20px;
+  background-color: #1e90ff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.toggle-squad-btn:hover {
+  background-color: #0e70d1;
+}

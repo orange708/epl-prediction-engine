@@ -8,9 +8,9 @@ BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
 
 
-@router.get("/transfers")
-def fetch_transfers(team: str = Query(...), season: int = Query(...)):
-    # Get team ID dynamically
+@router.get("/player-stats")
+def get_player_stats(team: str = Query(...), season: int = Query(...)):
+    # First, get the team ID
     team_search = requests.get(
         f"{BASE_URL}/teams",
         params={"search": team},
@@ -27,16 +27,16 @@ def fetch_transfers(team: str = Query(...), season: int = Query(...)):
 
     team_id = team_data["response"][0]["team"]["id"]
 
-    # Fetch transfers
-    transfers_resp = requests.get(
-        f"{BASE_URL}/transfers",
+    # Fetch player statistics
+    stats_resp = requests.get(
+        f"{BASE_URL}/players",
         params={"team": team_id, "season": season},
         headers=HEADERS,
         timeout=10
     )
 
-    if transfers_resp.status_code != 200:
-        raise HTTPException(status_code=transfers_resp.status_code, detail="Failed to fetch transfers")
+    if stats_resp.status_code != 200:
+        raise HTTPException(status_code=stats_resp.status_code, detail="Failed to fetch player statistics")
 
-    transfers_data = transfers_resp.json().get("response", [])
-    return {"team": team, "season": season, "transfers": transfers_data}
+    player_data = stats_resp.json().get("response", [])
+    return {"team": team, "season": season, "players": player_data}

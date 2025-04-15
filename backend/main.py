@@ -109,13 +109,27 @@ def get_standings(season: str = Query(..., description="Season in format YYYY/YY
             clean_sheets = max(1, round(38 - (goals_conceded / 2))) if goals_conceded else None
             possession = min(65, max(35, round(45 + random.uniform(-5, 5))))
 
+            win = int(round(row["Win"]))
+            draw = int(round(row["Draw"]))
+            loss = int(round(row["Loss"]))
+
+            total = win + draw + loss
+            if total != 38:
+                diff = 38 - total
+                if win >= draw and win >= loss:
+                    win += diff
+                elif draw >= win and draw >= loss:
+                    draw += diff
+                else:
+                    loss += diff
+
             result.append({
                 "Team": row["Team"],
                 "Points": row["Points"],
-                "Matches": row["Matches"],
-                "Win": row["Win"],
-                "Draw": row["Draw"],
-                "Loss": row["Loss"],
+                "Matches": 38,
+                "Win": win,
+                "Draw": draw,
+                "Loss": loss,
                 "PredictedRank": len(result) + 1,
                 "WinRate": win_rate,
                 "GoalsScored": goals_scored,
@@ -162,7 +176,7 @@ def get_team_details(
         # Add and format additional fields for frontend
         enhance_team_data(data)
         # Set up API details
-        API_KEY = os.getenv("API_FOOTBALL_KEY")
+        API_KEY = "b74d8f5aae6213568229f575ed7e0ede"
         BASE_URL = "https://v3.football.api-sports.io"
         headers = {"x-apisports-key": API_KEY}
         team_name = data["Team"]
@@ -178,6 +192,11 @@ def get_team_details(
                 timeout=5
             )
             team_data = team_search.json()
+            print("Request URL:", team_search.url)
+            print("Status Code:", team_search.status_code)
+            print("Response:", team_search.text)
+            if not team_data.get("response"):
+                raise HTTPException(status_code=404, detail=f"Team '{team_name}' not found in API")
             team_id = team_data["response"][0]["team"]["id"]
         except Exception as e:
             print(f"Error fetching team ID for {team_name}: {e}")
@@ -191,6 +210,9 @@ def get_team_details(
                 timeout=5
             )
             top_players = scorer_resp.json()["response"]
+            print("Request URL:", scorer_resp.url)
+            print("Status Code:", scorer_resp.status_code)
+            print("Response:", scorer_resp.text)
             top_scorer = next((p for p in top_players if p["statistics"][0]["team"]["name"] == team_name), None)
             if top_scorer:
                 data["TopScorer"] = {
@@ -210,11 +232,16 @@ def get_team_details(
                     timeout=5
                 )
                 transfers = trans_resp.json()["response"]
+                print("Request URL:", trans_resp.url)
+                print("Status Code:", trans_resp.status_code)
+                print("Response:", trans_resp.text)
                 data["TransfersIn"] = [{"name": t["player"]["name"], "from": t["transfers"][0]["teams"]["in"]["name"], "fee": t["transfers"][0]["type"]} for t in transfers if "in" in t["transfers"][0]["teams"]]
                 data["TransfersOut"] = [{"name": t["player"]["name"], "to": t["transfers"][0]["teams"]["out"]["name"], "fee": t["transfers"][0]["type"]} for t in transfers if "out" in t["transfers"][0]["teams"]]
         except Exception as e:
             print(f"Error fetching transfers for {team_name}: {e}")
 
+            if not data:
+                print("No data available to return for team:", team)
         return data
     except Exception as e:
         print(f"Error in get_team_details: {str(e)}")
@@ -255,7 +282,7 @@ def health_check():
 def get_team_squad(team: str = Query(..., description="Team name")):
     """Get full squad data for a team using API-Football"""
     try:
-        API_KEY = os.getenv("API_FOOTBALL_KEY")
+        API_KEY = "b74d8f5aae6213568229f575ed7e0ede"
         BASE_URL = "https://v3.football.api-sports.io"
         headers = {"x-apisports-key": API_KEY}
 
@@ -267,8 +294,12 @@ def get_team_squad(team: str = Query(..., description="Team name")):
             timeout=5
         )
         team_data = team_search.json()
+        print("Request URL:", team_search.url)
+        print("Status Code:", team_search.status_code)
+        print("Response:", team_search.text)
         if not team_data.get("response"):
-            raise HTTPException(status_code=404, detail="Team not found")
+            print(f"No team found matching: {team}")
+            raise HTTPException(status_code=404, detail=f"Team '{team}' not found in API")
 
         team_id = team_data["response"][0]["team"]["id"]
 
@@ -279,9 +310,13 @@ def get_team_squad(team: str = Query(..., description="Team name")):
             headers=headers,
             timeout=5
         )
-        squad_data = squad_resp.json().get("response", [])
-        if not squad_data:
+        squad_json = squad_resp.json()
+        print("Request URL:", squad_resp.url)
+        print("Status Code:", squad_resp.status_code)
+        print("Response:", squad_resp.text)
+        if "response" not in squad_json or not squad_json["response"]:
             raise HTTPException(status_code=404, detail="No squad data available")
+        squad_data = squad_json["response"]
 
         players = squad_data[0].get("players", [])
         formatted = [{
@@ -297,6 +332,88 @@ def get_team_squad(team: str = Query(..., description="Team name")):
     except Exception as e:
         print(f"Error in get_team_squad: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+# Add predicted squad endpoint and helper function
+
+@app.get("/predicted-squad")
+def get_predicted_squad(team: str = Query(...), season: str = Query(...)):
+    """Predict a future squad for a team in a specific season"""
+    try:
+        return predict_future_squad(team, season)
+    except Exception as e:
+        print(f"Error in get_predicted_squad: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+def predict_future_squad(team: str, season: str):
+    """Predict a future squad based on current squad and realistic transfer data"""
+    try:
+        API_KEY = "b74d8f5aae6213568229f575ed7e0ede"
+        BASE_URL = "https://v3.football.api-sports.io"
+        headers = {"x-apisports-key": API_KEY}
+        
+        # Step 1: Get current team ID
+        team_search = requests.get(
+            f"{BASE_URL}/teams",
+            params={"search": team},
+            headers=headers,
+            timeout=5
+        )
+        team_data = team_search.json()
+        if not team_data.get("response"):
+            raise HTTPException(status_code=404, detail=f"Team '{team}' not found in API")
+        team_id = team_data["response"][0]["team"]["id"]
+
+        # Step 2: Get current squad
+        squad_resp = requests.get(
+            f"{BASE_URL}/players/squads",
+            params={"team": team_id},
+            headers=headers,
+            timeout=5
+        )
+        squad_json = squad_resp.json()
+        if "response" not in squad_json or not squad_json["response"]:
+            raise HTTPException(status_code=404, detail="No squad data available")
+
+        players = squad_json["response"][0].get("players", [])
+        future_squad = []
+
+        for player in players:
+            future_squad.append({
+                "name": player.get("name"),
+                "age": player.get("age") + (int(season.split("/")[0]) - 2024),
+                "number": player.get("number"),
+                "position": player.get("position"),
+                "nationality": player.get("nationality"),
+                "photo": player.get("photo")
+            })
+
+        # Step 3: Fetch potential transfer targets (optional enhancement)
+        transfers_resp = requests.get(
+            f"{BASE_URL}/transfers",
+            params={"team": team_id},
+            headers=headers,
+            timeout=5
+        )
+        transfers_data = transfers_resp.json().get("response", [])
+        for t in transfers_data[:3]:  # limit to 3 recent ones
+            future_squad.append({
+                "name": t["player"]["name"],
+                "position": t["transfers"][0]["type"],
+                "age": random.randint(20, 28),
+                "number": None,
+                "nationality": "Unknown",
+                "photo": t["player"].get("photo")
+            })
+
+        return {
+            "team": team,
+            "season": season,
+            "squad": future_squad
+        }
+
+    except Exception as e:
+        print(f"Error in predict_future_squad: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate predicted squad")
 
 # Helper functions to generate dummy data
 def generate_dummy_standings():

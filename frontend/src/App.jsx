@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import "./App.css";
 import TeamView from "./components/TeamView";
+import SquadView from "./components/SquadView";
 
 const logoMap = {
   "Arsenal": "t3",
@@ -42,6 +43,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [availableSeasons, setAvailableSeasons] = useState([]);
+  const [squad, setSquad] = useState([]);
   
   const selectedTeamData = standings.find(t => (t.Team || "").toLowerCase() === team.toLowerCase());
 
@@ -107,6 +109,28 @@ function App() {
         setLoading(false);
       });
   }, [season]);
+
+  // Fetch squad when team changes
+  useEffect(() => {
+    if (!team) return;
+
+    console.log(`Fetching squad for ${team}...`);
+    axios
+      .get(`${API_BASE_URL}/team-squad?team=${encodeURIComponent(team)}`)
+      .then((res) => {
+        console.log("Squad response:", res.data);
+        if (Array.isArray(res.data)) {
+          setSquad(res.data);
+        } else {
+          console.warn("Invalid squad response:", res.data);
+          setSquad([]);
+        }
+      })
+      .catch((err) => {
+        console.error(`Error fetching squad: ${err.message}`);
+        setSquad([]);
+      });
+  }, [team]);
 
   const checkServerHealth = () => {
     axios
@@ -267,6 +291,8 @@ function App() {
           cleanSheets={selectedTeamData?.CleanSheets || "—"}
           possession={selectedTeamData?.Possession || "—"}
         />
+        
+        <SquadView team={team} squad={squad} />
       </div>
       
       <footer>
