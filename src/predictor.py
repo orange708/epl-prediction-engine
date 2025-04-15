@@ -10,7 +10,7 @@ def predict_league_standings(team_stats_df):
     Predicts league rankings based on team stats using a trained ML model.
     Returns a DataFrame sorted by predicted rank.
     """
-    features = ["Points", "GF", "GA", "GD", "Win", "Draw", "Loss", "PromotedTeam", "ManagerRating", "TierScore", "RelegationRisk"]
+    features = ["Points", "GF", "GA", "GD", "Win", "Draw", "Loss", "PromotedTeam", "ManagerRating", "TierScore", "RelegationRisk", "AvgPoints3Yrs", "PrevRank"]
     
     # Defensive check
     for f in features:

@@ -9,6 +9,22 @@ import os
 # Load data
 df = pd.read_csv("data/processed/team_season_stats.csv")
 
+# Sort by team and season to calculate rolling stats
+df["SeasonOrder"] = df["Season"].apply(lambda s: int(s.split("/")[0]))
+df = df.sort_values(by=["Team", "SeasonOrder"])
+
+# Create target: Final league rank (lower = better)
+df["FinalRank"] = df.groupby("Season")["Points"].rank(ascending=False, method="first")
+
+# Calculate rolling average points (last 3 seasons)
+df["AvgPoints3Yrs"] = df.groupby("Team")["Points"].transform(lambda x: x.shift(1).rolling(window=3, min_periods=1).mean())
+
+# Calculate previous season rank
+df["PrevRank"] = df.groupby("Team")["FinalRank"].shift(1)
+
+df["PrevRank"].fillna(df["FinalRank"].mean(), inplace=True)  # fallback
+df["AvgPoints3Yrs"].fillna(df["Points"].mean(), inplace=True)
+
 # Flag promoted teams
 promoted_teams = {
     "2014/2015": ["Leicester", "Burnley", "QPR"],
@@ -36,11 +52,11 @@ df["TierScore"] = df["Team"].apply(lambda t: 3 if t in top_teams else (1 if df.l
 # Add RelegationRisk = inverse of Points normalized
 df["RelegationRisk"] = df["Points"].max() - df["Points"]
 
-# Create target: Final league rank (lower = better)
-df["FinalRank"] = df.groupby("Season")["Points"].rank(ascending=False, method="first")
-
 # Features to use for prediction
-features = ["Points", "GF", "GA", "GD", "Win", "Draw", "Loss", "PromotedTeam", "ManagerRating", "TierScore", "RelegationRisk"]
+features = [
+    "Points", "GF", "GA", "GD", "Win", "Draw", "Loss", "PromotedTeam",
+    "ManagerRating", "TierScore", "RelegationRisk", "AvgPoints3Yrs", "PrevRank"
+]
 X = df[features]
 y = df["FinalRank"]
 
