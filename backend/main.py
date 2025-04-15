@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import random
 import requests
+from backend.utils.squad_predictor import predict_future_squad as smarter_predict_future_squad
 
 app = FastAPI(
     title="EPL Prediction Engine API",
@@ -333,89 +334,16 @@ def get_team_squad(team: str = Query(..., description="Team name")):
         print(f"Error in get_team_squad: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# Add predicted squad endpoint and helper function
-
+ 
+# New predicted squad endpoint
 @app.get("/predicted-squad")
 def get_predicted_squad(team: str = Query(...), season: str = Query(...)):
     """Predict a future squad for a team in a specific season"""
     try:
-        return predict_future_squad(team, season)
+        return smarter_predict_future_squad(team, season)
     except Exception as e:
         print(f"Error in get_predicted_squad: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
-def predict_future_squad(team: str, season: str):
-    """Predict a future squad based on current squad and realistic transfer data"""
-    try:
-        API_KEY = "b74d8f5aae6213568229f575ed7e0ede"
-        BASE_URL = "https://v3.football.api-sports.io"
-        headers = {"x-apisports-key": API_KEY}
-        
-        # Step 1: Get current team ID
-        team_search = requests.get(
-            f"{BASE_URL}/teams",
-            params={"search": team},
-            headers=headers,
-            timeout=5
-        )
-        team_data = team_search.json()
-        if not team_data.get("response"):
-            raise HTTPException(status_code=404, detail=f"Team '{team}' not found in API")
-        team_id = team_data["response"][0]["team"]["id"]
-
-        # Step 2: Get current squad
-        squad_resp = requests.get(
-            f"{BASE_URL}/players/squads",
-            params={"team": team_id},
-            headers=headers,
-            timeout=5
-        )
-        squad_json = squad_resp.json()
-        if "response" not in squad_json or not squad_json["response"]:
-            raise HTTPException(status_code=404, detail="No squad data available")
-
-        players = squad_json["response"][0].get("players", [])
-        future_squad = []
-
-        for player in players:
-            future_squad.append({
-                "name": player.get("name"),
-                "age": player.get("age") + (int(season.split("/")[0]) - 2024),
-                "number": player.get("number"),
-                "position": player.get("position"),
-                "nationality": player.get("nationality"),
-                "photo": player.get("photo")
-            })
-
-        # Step 3: Fetch potential transfer targets (optional enhancement)
-        transfers_resp = requests.get(
-            f"{BASE_URL}/transfers",
-            params={"team": team_id},
-            headers=headers,
-            timeout=5
-        )
-        transfers_data = transfers_resp.json().get("response", [])
-        for t in transfers_data[:3]:  # limit to 3 recent ones
-            future_squad.append({
-                "name": t["player"]["name"],
-                "position": t["transfers"][0]["type"],
-                "age": random.randint(20, 28),
-                "number": None,
-                "nationality": "Unknown",
-                "photo": t["player"].get("photo")
-            })
-
-        return {
-            "team": team,
-            "season": season,
-            "squad": future_squad
-        }
-
-    except Exception as e:
-        print(f"Error in predict_future_squad: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to generate predicted squad")
-
-# Helper functions to generate dummy data
 def generate_dummy_standings():
     """Load predicted standings from simulated_season_history.csv"""
     try:

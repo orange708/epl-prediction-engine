@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.preprocessing import StandardScaler
@@ -24,8 +24,26 @@ df["FinalRank"] = df.groupby("Season")["Points"].rank(ascending=False, method="f
 df["AvgPoints3Yrs"] = df.groupby("Team")["Points"].transform(lambda x: x.shift(1).rolling(window=3, min_periods=1).mean())
 df["PrevRank"] = df.groupby("Team")["FinalRank"].shift(1)
 
-df["PrevRank"].fillna(df["FinalRank"].mean(), inplace=True)
-df["AvgPoints3Yrs"].fillna(df["Points"].mean(), inplace=True)
+df["PrevRank"] = df["PrevRank"].fillna(df["FinalRank"].mean())
+df["AvgPoints3Yrs"] = df["AvgPoints3Yrs"].fillna(df["Points"].mean())
+
+# Add new rolling features
+df["AvgGD3Yrs"] = df.groupby("Team")["GD"].transform(lambda x: x.shift(1).rolling(window=3, min_periods=1).mean())
+df["AvgGF3Yrs"] = df.groupby("Team")["GF"].transform(lambda x: x.shift(1).rolling(window=3, min_periods=1).mean())
+df["AvgGA3Yrs"] = df.groupby("Team")["GA"].transform(lambda x: x.shift(1).rolling(window=3, min_periods=1).mean())
+
+# Fill missing values
+df["AvgGD3Yrs"] = df["AvgGD3Yrs"].fillna(df["GD"].mean())
+df["AvgGF3Yrs"] = df["AvgGF3Yrs"].fillna(df["GF"].mean())
+df["AvgGA3Yrs"] = df["AvgGA3Yrs"].fillna(df["GA"].mean())
+
+# Advanced features
+df["GoalEfficiency"] = df["GF"] / (df["GF"] + df["GA"])
+df["WinRate"] = df["Win"] / (df["Win"] + df["Draw"] + df["Loss"])
+df["FormFactor"] = df["Points"] / 38  # assuming 38 games per season
+# Slight random noise to introduce variation and reduce model overfitting to history
+np.random.seed(42)
+df["RandomNoise"] = np.random.normal(0, 1, len(df))
 
 # Promoted teams
 promoted_teams = {
@@ -52,9 +70,12 @@ df["TierScore"] = df["Team"].apply(lambda t: 3 if t in top_teams else (1 if df.l
 df["RelegationRisk"] = df["Points"].max() - df["Points"]
 
 # Features and target
+df["AvgPoints3Yrs"] = df["AvgPoints3Yrs"] * 0.75
 features = [
     "GF", "GA", "GD", "Win", "Draw", "Loss", "PromotedTeam",
-    "ManagerRating", "TierScore", "RelegationRisk", "AvgPoints3Yrs", "PrevRank"
+    "ManagerRating", "TierScore", "RelegationRisk", "AvgPoints3Yrs", "PrevRank",
+    "GoalEfficiency", "WinRate", "FormFactor", "AvgGD3Yrs", "AvgGF3Yrs", "AvgGA3Yrs",
+    "RandomNoise"
 ]
 target = "Points"
 
@@ -69,7 +90,7 @@ X_scaled = scaler.fit_transform(X)
 X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
 # Train model
-model = GradientBoostingRegressor(n_estimators=250, learning_rate=0.1, max_depth=5, random_state=42)
+model = HistGradientBoostingRegressor(max_iter=500, learning_rate=0.05, max_depth=6, random_state=42)
 model.fit(X_train, y_train)
 
 # Evaluate

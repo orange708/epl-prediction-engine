@@ -11,7 +11,9 @@ df = df[df["Season"] == "2024/2025"].copy()
 top_teams = ["Man City", "Liverpool", "Chelsea", "Arsenal", "Man United", "Tottenham"]
 championship_pool = [
     "Sunderland", "Leeds", "Watford", "Norwich", "Sheffield United",
-    "Blackburn", "Ipswich", "West Brom", "Stoke", "Bristol City"
+    "Blackburn", "Ipswich", "West Brom", "Stoke", "Bristol City",
+    "Middlesbrough", "Coventry", "Hull", "Preston", "Millwall",
+    "Cardiff", "QPR", "Birmingham", "Swansea", "Huddersfield"
 ]
 
 # Preserve original as base for evolution
@@ -31,6 +33,11 @@ for year in range(2025, 2031):
     season_df["GD"] = season_df["GF"] - season_df["GA"]
     season_df = season_df.round(1)
 
+    # Add small noise to simulate variation
+    variation = np.random.normal(0, 0.8, size=len(season_df))
+    season_df["Points"] = season_df["Points"] + variation
+    season_df["Points"] = season_df["Points"].clip(lower=0)  # Avoid negatives
+
     # Apply realism adjustments
     season_df["Season"] = season
     season_datasets[season] = season_df.copy()
@@ -41,6 +48,12 @@ for year in range(2025, 2031):
 
     # Predict standings
     predicted = predict_league_standings(season_df.copy())
+    
+    # Introduce slight rank shuffling to simulate unpredictability
+    predicted["PredictedRank"] += np.random.uniform(-0.3, 0.3, size=len(predicted))
+    predicted = predicted.sort_values(by="PredictedRank").reset_index(drop=True)
+    predicted["PredictedRank"] = predicted.index + 1
+    
     history[season] = predicted[["Team", "PredictedRank"]]
 
     print(f"\nPredicted Standings for {season}:")
