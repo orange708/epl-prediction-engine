@@ -3,35 +3,97 @@ import axios from "axios";
 import "./App.css";
 import TeamView from "./components/TeamView";
 
+// Define the API base URL - update this if your backend is on a different port/host
+const API_BASE_URL = "http://127.0.0.1:8000";
+
 function App() {
   const [season, setSeason] = useState("2027/2028");
   const [standings, setStandings] = useState([]);
   const [team, setTeam] = useState("Arsenal");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const [availableSeasons, setAvailableSeasons] = useState([]);
+  
+  // Fetch available seasons on initial load
   useEffect(() => {
-    // Reset loading state when season changes
+    console.log("Fetching available seasons...");
+    axios
+      .get(`${API_BASE_URL}/seasons`)
+      .then((res) => {
+        console.log("Seasons response:", res.data);
+        if (res.data && res.data.seasons && res.data.seasons.length > 0) {
+          setAvailableSeasons(res.data.seasons);
+          // Set initial season to latest available
+          setSeason(res.data.seasons[res.data.seasons.length - 1]);
+        } else {
+          console.warn("No seasons found in response");
+          setAvailableSeasons([
+            "2025/2026", "2026/2027", "2027/2028", 
+            "2028/2029", "2029/2030", "2030/2031"
+          ]);
+        }
+      })
+      .catch((err) => {
+        console.error(`Error fetching seasons: ${err.message}`);
+        // Fallback seasons if API fails
+        setAvailableSeasons([
+          "2025/2026", "2026/2027", "2027/2028", 
+          "2028/2029", "2029/2030", "2030/2031"
+        ]);
+      });
+  }, []);
+
+  // Fetch standings when season changes
+  useEffect(() => {
+    if (!season) return;
+    
+    console.log(`Fetching standings for season ${season}...`);
     setLoading(true);
     
-    // Generate dummy data as fallback
-    const dummyStandings = generateDummyStandings();
-    
     axios
-      .get(`http://127.0.0.1:8000/standings?season=${season}`)
+      .get(`${API_BASE_URL}/standings?season=${season}`)
       .then((res) => {
-        setStandings(res.data);
-        setLoading(false);
-        setError(null);
+        console.log("Standings response:", res.data);
+        if (Array.isArray(res.data)) {
+          setStandings(res.data);
+          setLoading(false);
+          setError(null);
+          
+          // If no team is selected or current team not in new season,
+          // select the top team from standings
+          if (res.data.length > 0 && (!team || !res.data.some(t => t.Team === team))) {
+            setTeam(res.data[0].Team);
+          }
+        } else {
+          console.warn("Invalid standings response format:", res.data);
+          setError("Received invalid data format from server.");
+          setLoading(false);
+        }
       })
       .catch((err) => {
         console.error(`Error fetching standings: ${err.message}`);
-        // Use dummy data when API fails
-        setStandings(dummyStandings);
-        setError("Could not connect to API. Using sample data instead.");
+        setError("Could not load standings data. Please check if the backend is running.");
         setLoading(false);
       });
   }, [season]);
+
+  const checkServerHealth = () => {
+    axios
+      .get(`${API_BASE_URL}/health`)
+      .then((res) => {
+        console.log("Server health:", res.data);
+        if (res.data.status === "ok") {
+          // If server is healthy but we had an error, retry loading standings
+          if (error) {
+            setSeason(prevSeason => prevSeason); // Trigger a refetch
+          }
+        }
+      })
+      .catch((err) => {
+        console.error(`Server health check failed: ${err.message}`);
+        setError("Backend server not responding. Please ensure it's running at " + API_BASE_URL);
+      });
+  };
 
   return (
     <div className="app-container">
@@ -47,6 +109,21 @@ function App() {
           textAlign: "center" 
         }}>
           {error}
+          <div style={{ marginTop: "0.5rem" }}>
+            <button 
+              onClick={checkServerHealth} 
+              style={{ 
+                background: "rgba(255, 255, 255, 0.2)",
+                border: "none",
+                padding: "0.25rem 0.75rem",
+                borderRadius: "4px",
+                cursor: "pointer",
+                color: "white"
+              }}
+            >
+              Check Connection
+            </button>
+          </div>
         </div>
       )}
 
@@ -57,13 +134,11 @@ function App() {
             id="season-select"
             value={season}
             onChange={(e) => setSeason(e.target.value)}
+            disabled={loading || availableSeasons.length === 0}
           >
-            <option value="2025/2026">2025/2026</option>
-            <option value="2026/2027">2026/2027</option>
-            <option value="2027/2028">2027/2028</option>
-            <option value="2028/2029">2028/2029</option>
-            <option value="2029/2030">2029/2030</option>
-            <option value="2030/2031">2030/2031</option>
+            {availableSeasons.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -152,61 +227,14 @@ function App() {
           </div>
         </div>
 
-        <TeamView team={team} season={season} />
+        <TeamView team={team} season={season} apiBaseUrl={API_BASE_URL} />
       </div>
+      
+      <footer>
+        <p>© 2025 Premier League Prediction Engine | Data powered by ML model</p>
+      </footer>
     </div>
   );
-}
-
-// Function to generate dummy standings data when API fails
-function generateDummyStandings() {
-  const teams = [
-    "Man City", "Arsenal", "Liverpool", "Chelsea", "Man United", 
-    "Tottenham", "Aston Villa", "Newcastle", "West Ham", "Brighton",
-    "Brentford", "Wolves", "Crystal Palace", "Everton", "Nottingham Forest",
-    "Bournemouth", "Fulham", "Luton", "Burnley", "Sheffield United"
-  ];
-  
-  // Sort teams roughly by expected strength
-  const sortedTeams = [...teams].sort((a, b) => {
-    const tierA = getTier(a);
-    const tierB = getTier(b);
-    return tierA - tierB;
-  });
-  
-  // Add some randomness to points
-  return sortedTeams.map(team => {
-    const tier = getTier(team);
-    const basePoints = tier === 1 ? 80 : tier === 2 ? 60 : 40;
-    const randomFactor = Math.floor(Math.random() * 15) - 5; // -5 to +10 points of randomness
-    const points = basePoints + randomFactor;
-    
-    const matches = 38;
-    const winRate = tier === 1 ? 0.65 : tier === 2 ? 0.45 : 0.3;
-    const wins = Math.round(matches * winRate);
-    const drawRate = tier === 1 ? 0.2 : tier === 2 ? 0.25 : 0.25;
-    const draws = Math.round(matches * drawRate);
-    const losses = matches - wins - draws;
-    
-    return {
-      Team: team,
-      Points: points,
-      Matches: matches,
-      Win: wins,
-      Draw: draws,
-      Loss: losses
-    };
-  });
-}
-
-// Helper function to determine team tier
-function getTier(team) {
-  const topTeams = ["Man City", "Liverpool", "Arsenal", "Chelsea", "Man United", "Tottenham"];
-  const midTeams = ["Aston Villa", "Newcastle", "West Ham", "Brighton", "Brentford", "Wolves", "Crystal Palace"];
-  
-  if (topTeams.includes(team)) return 1;
-  if (midTeams.includes(team)) return 2;
-  return 3;
 }
 
 export default App;
