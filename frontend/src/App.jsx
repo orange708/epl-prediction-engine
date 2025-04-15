@@ -43,6 +43,8 @@ function App() {
   const [error, setError] = useState(null);
   const [availableSeasons, setAvailableSeasons] = useState([]);
   
+  const selectedTeamData = standings.find(t => (t.Team || "").toLowerCase() === team.toLowerCase());
+
   // Fetch available seasons on initial load
   useEffect(() => {
     console.log("Fetching available seasons...");
@@ -256,7 +258,15 @@ function App() {
           </div>
         </div>
 
-        <TeamView team={team} season={season} apiBaseUrl={API_BASE_URL} />
+        <TeamView
+          team={team}
+          season={season}
+          teamData={selectedTeamData}
+          goalsScored={selectedTeamData?.GF || "—"}
+          goalsConceded={selectedTeamData?.GA || "—"}
+          cleanSheets={selectedTeamData?.CleanSheets || "—"}
+          possession={selectedTeamData?.Possession || "—"}
+        />
       </div>
       
       <footer>

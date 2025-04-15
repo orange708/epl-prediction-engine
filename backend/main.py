@@ -6,14 +6,18 @@ import os
 import pandas as pd
 import numpy as np
 import random
-
-print("Loading EPL Prediction API...")
+import requests
 
 app = FastAPI(
     title="EPL Prediction Engine API",
     description="Predicts Premier League standings and team performances",
     version="1.0.0"
 )
+
+from backend.api import transfers
+app.include_router(transfers.router)
+
+print("Loading EPL Prediction API...")
 
 # Enable CORS for frontend access
 app.add_middleware(
@@ -97,8 +101,30 @@ def get_standings(season: str = Query(..., description="Season in format YYYY/YY
         # Sort by points in descending order
         standings = standings.sort_values(by=["Points"], ascending=False)
         
-        # Return only necessary columns
-        return standings[["Team", "Points", "Matches", "Win", "Draw", "Loss"]].to_dict(orient="records")
+        result = []
+        for idx, row in standings.iterrows():
+            win_rate = round((row["Win"] / row["Matches"]) * 100, 1)
+            goals_scored = row["GF"] if "GF" in row else None
+            goals_conceded = row["GA"] if "GA" in row else None
+            clean_sheets = max(1, round(38 - (goals_conceded / 2))) if goals_conceded else None
+            possession = min(65, max(35, round(45 + random.uniform(-5, 5))))
+
+            result.append({
+                "Team": row["Team"],
+                "Points": row["Points"],
+                "Matches": row["Matches"],
+                "Win": row["Win"],
+                "Draw": row["Draw"],
+                "Loss": row["Loss"],
+                "PredictedRank": len(result) + 1,
+                "WinRate": win_rate,
+                "GoalsScored": goals_scored,
+                "GoalsConceded": goals_conceded,
+                "CleanSheets": clean_sheets,
+                "Possession": possession
+            })
+
+        return result
     except Exception as e:
         print(f"Error in get_standings: {str(e)}")
         # Return dummy data if any error occurs
@@ -128,9 +154,70 @@ def get_team_details(
         # Get the team data as a dictionary
         data = team_data.iloc[0].to_dict()
         
+        team_list = df[df["Season"] == season].copy()
+        team_list = team_list.sort_values(by=["Points"], ascending=False).reset_index(drop=True)
+        rank_map = {row["Team"]: idx + 1 for idx, row in team_list.iterrows()}
+        data["PredictedRank"] = rank_map.get(team, None)
+
         # Add and format additional fields for frontend
         enhance_team_data(data)
-        
+
+        import requests
+
+        API_KEY = os.getenv("API_FOOTBALL_KEY")
+        BASE_URL = "https://v3.football.api-sports.io"
+
+        headers = {"x-apisports-key": API_KEY}
+        team_name = data["Team"]
+        season_year = season.split("/")[0]
+
+        # Get team ID
+        team_id = None
+        try:
+            team_search = requests.get(
+                f"{BASE_URL}/teams",
+                params={"search": team_name},
+                headers=headers,
+                timeout=5
+            )
+            team_data = team_search.json()
+            team_id = team_data["response"][0]["team"]["id"]
+        except Exception as e:
+            print(f"Error fetching team ID for {team_name}: {e}")
+
+        # Fetch top scorer
+        try:
+            scorer_resp = requests.get(
+                f"{BASE_URL}/players/topscorers",
+                params={"league": 39, "season": season_year},
+                headers=headers,
+                timeout=5
+            )
+            top_players = scorer_resp.json()["response"]
+            top_scorer = next((p for p in top_players if p["statistics"][0]["team"]["name"] == team_name), None)
+            if top_scorer:
+                data["TopScorer"] = {
+                    "name": top_scorer["player"]["name"],
+                    "goals": top_scorer["statistics"][0]["goals"]["total"]
+                }
+        except Exception as e:
+            print(f"Error fetching top scorer for {team_name}: {e}")
+
+        # Transfers (if team_id available)
+        try:
+            if team_id:
+                trans_resp = requests.get(
+                    f"{BASE_URL}/transfers",
+                    params={"team": team_id},
+                    headers=headers,
+                    timeout=5
+                )
+                transfers = trans_resp.json()["response"]
+                data["TransfersIn"] = [{"name": t["player"]["name"], "from": t["transfers"][0]["teams"]["in"]["name"], "fee": t["transfers"][0]["type"]} for t in transfers if "in" in t["transfers"][0]["teams"]]
+                data["TransfersOut"] = [{"name": t["player"]["name"], "to": t["transfers"][0]["teams"]["out"]["name"], "fee": t["transfers"][0]["type"]} for t in transfers if "out" in t["transfers"][0]["teams"]]
+        except Exception as e:
+            print(f"Error fetching transfers for {team_name}: {e}")
+
         return data
     except Exception as e:
         print(f"Error in get_team_details: {str(e)}")

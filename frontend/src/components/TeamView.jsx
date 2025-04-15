@@ -1,50 +1,11 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
 import PropTypes from "prop-types";
 
-function TeamView({ team, season, apiBaseUrl = "" }) {
-  const [teamData, setTeamData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!team || !season) return;
-    
-    console.log(`Fetching data for ${team} (${season})...`);
-    setLoading(true);
-    
-    axios
-      .get(`${apiBaseUrl}/team?season=${season}&team=${team}`)
-      .then((res) => {
-        console.log("Team data response:", res.data);
-        setTeamData(res.data);
-        setLoading(false);
-        setError(null);
-      })
-      .catch((err) => {
-        console.error(`Error fetching team data: ${err.message}`);
-        setError("Could not load team data. Please try again later.");
-        setLoading(false);
-      });
-  }, [team, season, apiBaseUrl]);
-
-  if (loading) {
-    return (
-      <div className="team-details">
-        <div className="team-header">
-          <div className="team-header-info">
-            <h3>Loading {team}...</h3>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+function TeamView({ team, season, teamData }) {
   if (!teamData) {
     return (
       <div className="team-details">
         <div style={{ color: "#ff6b6b", padding: "2rem", textAlign: "center" }}>
-          {error || `No data found for ${team} in the ${season} season.`}
+          No data found for {team} in the {season} season.
         </div>
       </div>
     );
@@ -52,15 +13,9 @@ function TeamView({ team, season, apiBaseUrl = "" }) {
 
   return (
     <div className="team-details">
-      {error && (
-        <div style={{ color: "#ff6b6b", marginBottom: "1rem", fontSize: "0.9rem" }}>
-          {error}
-        </div>
-      )}
-      
       <div className="team-header">
         <img
-          src={`https://logo.clearbit.com/${team.replace(/\s+/g, "").toLowerCase()}.com`}
+          src={`https://crests.football-data.org/${getTeamId(team)}.svg`}
           alt={`${team} logo`}
           onError={(e) => { e.target.src = "/placeholder-logo.png"; }}
         />
@@ -159,6 +114,48 @@ function TeamView({ team, season, apiBaseUrl = "" }) {
         </div>
       </div>
 
+      <div className="stat-section">
+        <h4>Top Scorer</h4>
+        {teamData?.TopScorer ? (
+          <p>{teamData.TopScorer.name} ({teamData.TopScorer.goals} goals)</p>
+        ) : (
+          <p>No data available</p>
+        )}
+
+        <h4>Key Players</h4>
+        {teamData?.KeyPlayers?.length > 0 ? (
+          <ul>
+            {teamData.KeyPlayers.map((player, idx) => (
+              <li key={idx}>{player.name} - {player.position}</li>
+            ))}
+          </ul>
+        ) : (
+          <p>No data available</p>
+        )}
+
+        <h4>Transfers In</h4>
+        {teamData?.TransfersIn?.length > 0 ? (
+          <ul>
+            {teamData.TransfersIn.map((t, idx) => (
+              <li key={idx}>{t.name} from {t.from} ({t.fee})</li>
+            ))}
+          </ul>
+        ) : (
+          <p>No data available</p>
+        )}
+
+        <h4>Transfers Out</h4>
+        {teamData?.TransfersOut?.length > 0 ? (
+          <ul>
+            {teamData.TransfersOut.map((t, idx) => (
+              <li key={idx}>{t.name} to {t.to} ({t.fee})</li>
+            ))}
+          </ul>
+        ) : (
+          <p>No data available</p>
+        )}
+      </div>
+
       <div className="chart-section">
         <div className="chart-placeholder">Position trend data will appear here</div>
       </div>
@@ -192,10 +189,38 @@ function getRelegationRiskText(risk) {
   return "High";
 }
 
+// Helper function to map team names to football-data.org IDs
+function getTeamId(teamName) {
+  const teamIds = {
+    "Arsenal": 57,
+    "Aston Villa": 58,
+    "Bournemouth": 1044,
+    "Brentford": 402,
+    "Brighton": 397,
+    "Burnley": 328,
+    "Chelsea": 61,
+    "Crystal Palace": 354,
+    "Everton": 62,
+    "Fulham": 63,
+    "Leicester": 338,
+    "Liverpool": 64,
+    "Luton": 389,
+    "Man City": 65,
+    "Man United": 66,
+    "Newcastle": 67,
+    "Nott'm Forest": 351,
+    "Sheffield United": 356,
+    "Tottenham": 73,
+    "West Ham": 563,
+    "Wolves": 76
+  };
+  return teamIds[teamName] || 0;
+}
+
 TeamView.propTypes = {
   team: PropTypes.string.isRequired,
   season: PropTypes.string.isRequired,
-  apiBaseUrl: PropTypes.string
+  teamData: PropTypes.object
 };
 
 export default TeamView;
