@@ -58,24 +58,33 @@
 
 .toggle-squad-btn:hover {
   background-color: #0e70d1;
+}
+
 .squad-view img {
   width: 48px;
   height: 48px;
   border-radius: 50%;
   object-fit: cover;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
 }
+
+.squad-view img:hover {
+  transform: scale(1.05);
 }
 
 .squad-view .player-row {
   display: flex;
   align-items: center;
   gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e6ecf1;
 }
 
 .squad-view .player-info {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
 .squad-view .player-number {

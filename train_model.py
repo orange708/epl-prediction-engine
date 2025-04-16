@@ -24,8 +24,8 @@ df["FinalRank"] = df.groupby("Season")["Points"].rank(ascending=False, method="f
 df["AvgPoints3Yrs"] = df.groupby("Team")["Points"].transform(lambda x: x.shift(1).rolling(window=3, min_periods=1).mean())
 df["PrevRank"] = df.groupby("Team")["FinalRank"].shift(1)
 
-df["PrevRank"] = df["PrevRank"].fillna(df["FinalRank"].mean())
-df["AvgPoints3Yrs"] = df["AvgPoints3Yrs"].fillna(df["Points"].mean())
+df["PrevRank"] = df["PrevRank"].fillna(df.groupby("Season")["FinalRank"].transform("mean"))
+df["AvgPoints3Yrs"] = df["AvgPoints3Yrs"].fillna(df.groupby("Season")["Points"].transform("mean"))
 
 # Add new rolling features
 df["AvgGD3Yrs"] = df.groupby("Team")["GD"].transform(lambda x: x.shift(1).rolling(window=3, min_periods=1).mean())
@@ -33,9 +33,9 @@ df["AvgGF3Yrs"] = df.groupby("Team")["GF"].transform(lambda x: x.shift(1).rollin
 df["AvgGA3Yrs"] = df.groupby("Team")["GA"].transform(lambda x: x.shift(1).rolling(window=3, min_periods=1).mean())
 
 # Fill missing values
-df["AvgGD3Yrs"] = df["AvgGD3Yrs"].fillna(df["GD"].mean())
-df["AvgGF3Yrs"] = df["AvgGF3Yrs"].fillna(df["GF"].mean())
-df["AvgGA3Yrs"] = df["AvgGA3Yrs"].fillna(df["GA"].mean())
+df["AvgGD3Yrs"] = df["AvgGD3Yrs"].fillna(df.groupby("Season")["GD"].transform("mean"))
+df["AvgGF3Yrs"] = df["AvgGF3Yrs"].fillna(df.groupby("Season")["GF"].transform("mean"))
+df["AvgGA3Yrs"] = df["AvgGA3Yrs"].fillna(df.groupby("Season")["GA"].transform("mean"))
 
 # Advanced features
 df["GoalEfficiency"] = df["GF"] / (df["GF"] + df["GA"])
@@ -43,7 +43,7 @@ df["WinRate"] = df["Win"] / (df["Win"] + df["Draw"] + df["Loss"])
 df["FormFactor"] = df["Points"] / 38  # assuming 38 games per season
 # Slight random noise to introduce variation and reduce model overfitting to history
 np.random.seed(42)
-df["RandomNoise"] = np.random.normal(0, 1, len(df))
+df["RandomNoise"] = np.random.normal(0, 0.5, len(df))  # slightly less noise to keep predictions more stable
 
 # Promoted teams
 promoted_teams = {
@@ -64,7 +64,7 @@ df["PromotedTeam"] = df.apply(lambda row: 1 if row["Team"] in promoted_teams.get
 # Manager rating and tier
 top_teams = ["Man City", "Liverpool", "Chelsea", "Arsenal", "Man United", "Tottenham"]
 df["ManagerRating"] = df["Team"].apply(lambda t: 0.85 if t in top_teams else 0.65)
-df["TierScore"] = df["Team"].apply(lambda t: 3 if t in top_teams else (1 if df.loc[df["Team"] == t, "PromotedTeam"].iloc[0] == 1 else 2))
+df["TierScore"] = df.apply(lambda row: 3 if row["Team"] in top_teams else (1 if row["PromotedTeam"] == 1 else 2), axis=1)
 
 # Relegation Risk
 df["RelegationRisk"] = df["Points"].max() - df["Points"]
@@ -103,3 +103,20 @@ os.makedirs("models", exist_ok=True)
 joblib.dump(model, "models/final_points_model.pkl")
 joblib.dump(scaler, "models/final_points_scaler.pkl")
 print("✅ Model and scaler saved.")
+
+# Optional: Save binary winner dataset (used for historical winner prediction)
+df["IsWinner"] = df.groupby("Season")["Points"].transform(lambda x: x == x.max()).astype(int)
+winner_features = X.copy()
+winner_target = df["IsWinner"]
+
+X_winner_scaled = scaler.fit_transform(winner_features)
+X_winner_train, X_winner_test, y_winner_train, y_winner_test = train_test_split(
+    X_winner_scaled, winner_target, test_size=0.2, random_state=42
+)
+
+winner_model = HistGradientBoostingRegressor(max_iter=500, learning_rate=0.05, max_depth=6, random_state=42)
+winner_model.fit(X_winner_train, y_winner_train)
+
+print(f"[Winner Model] MAE: {mean_absolute_error(y_winner_test, winner_model.predict(X_winner_test)):.2f}")
+joblib.dump(winner_model, "models/final_winner_model.pkl")
+print("🏆 Winner prediction model saved.")

@@ -126,18 +126,23 @@ def get_standings(season: str = Query(..., description="Season in format YYYY/YY
 
             result.append({
                 "Team": row["Team"],
-                "Points": row["Points"],
+                "Points": round(row["Points"]),
                 "Matches": 38,
                 "Win": win,
                 "Draw": draw,
                 "Loss": loss,
-                "PredictedRank": len(result) + 1,
+                "PredictedRank": None,  # will set after shuffle
                 "WinRate": win_rate,
                 "GoalsScored": goals_scored,
                 "GoalsConceded": goals_conceded,
                 "CleanSheets": clean_sheets,
                 "Possession": possession
             })
+
+        # Shuffle teams with similar points to prevent static winners
+        result = sorted(result, key=lambda x: (x["Points"] + random.uniform(-1.5, 1.5)), reverse=True)
+        for i, team in enumerate(result):
+            team["PredictedRank"] = i + 1
 
         return result
     except Exception as e:
