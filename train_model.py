@@ -6,6 +6,10 @@ from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.preprocessing import StandardScaler
 import joblib
 import os
+import sys
+
+if not os.path.exists("data/processed/team_season_stats.csv"):
+    sys.exit("❌ CSV file not found. Ensure data/processed/team_season_stats.csv exists.")
 
 # Load dataset
 df = pd.read_csv("data/processed/team_season_stats.csv")
@@ -42,8 +46,8 @@ df["GoalEfficiency"] = df["GF"] / (df["GF"] + df["GA"])
 df["WinRate"] = df["Win"] / (df["Win"] + df["Draw"] + df["Loss"])
 df["FormFactor"] = df["Points"] / 38  # assuming 38 games per season
 # Slight random noise to introduce variation and reduce model overfitting to history
-np.random.seed(42)
-df["RandomNoise"] = np.random.normal(0, 0.5, len(df))  # slightly less noise to keep predictions more stable
+rng = np.random.default_rng(seed=42)
+df["RandomNoise"] = rng.normal(0, 0.5, len(df))  # slightly less noise to keep predictions more stable
 
 # Promoted teams
 promoted_teams = {

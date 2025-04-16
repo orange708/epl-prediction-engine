@@ -209,16 +209,13 @@ def predict_league_standings(team_stats_df, season_index=0, recent_champions=Non
     
     df["MomentumScore"] = df["AvgPoints3Yrs"] * 0.6 + (100 - df["PrevRank"]) * 0.4
 
-    try:
-        # Get list of features used by the model
-        feature_names = model.feature_names_in_
-    except AttributeError:
-        # Fallback for older scikit-learn versions
-        feature_names = [
-            "GF", "GA", "GD", "Win", "Draw", "Loss", "PromotedTeam",
-            "ManagerRating", "TierScore", "RelegationRisk", "AvgPoints3Yrs", "PrevRank"
-        ]
-    
+    feature_names = [
+        "GF", "GA", "GD", "Win", "Draw", "Loss", "PromotedTeam",
+        "ManagerRating", "TierScore", "RelegationRisk", "AvgPoints3Yrs",
+        "PrevRank", "SquadAge", "SquadValue", "Injuries", "CleanSheets",
+        "ShotsPerGame", "Possession", "PassAccuracy", "MomentumScore"
+    ]
+
     # Ensure all required features exist
     for feature in feature_names:
         if feature not in df.columns:
@@ -230,15 +227,15 @@ def predict_league_standings(team_stats_df, season_index=0, recent_champions=Non
             else:
                 df[feature] = 0  # Generic default
     
-    if "MomentumScore" not in feature_names:
-        df["MomentumScore"] = df["AvgPoints3Yrs"] * 0.6 + (100 - df["PrevRank"]) * 0.4
-        feature_names.append("MomentumScore")
-    
     # Select only the needed features
     X = df[feature_names].copy()
-    
+
     # Scale features
-    X_scaled = scaler.transform(X)
+    try:
+        X_scaled = scaler.transform(X)
+    except ValueError as e:
+        print("Feature mismatch during scaling:", str(e))
+        return df
     
     # Get base predictions from model
     base_predictions = model.predict(X_scaled) * 0.7 + (df["MomentumScore"] / 100) * 0.3
@@ -280,8 +277,8 @@ def predict_league_standings(team_stats_df, season_index=0, recent_champions=Non
             df.loc[df["Team"] == team, "Points"] *= fatigue_penalty
     
     # Sort by points and assign ranks
-    df = df.sort_values(by="Points", reverse=True)
-    df["PredictedRank"] = range(1, len(df) + 1)
+    df = df.sort_values(by="Points", ascending=False).reset_index(drop=True)
+    df["PredictedRank"] = df.index + 1
 
     # Predict likely winner using winner model
     try:
@@ -311,6 +308,8 @@ def predict_league_standings(team_stats_df, season_index=0, recent_champions=Non
     # Calculate goal difference if not already present
     if "GD" not in df.columns and "GF" in df.columns and "GA" in df.columns:
         df["GD"] = df["GF"] - df["GA"]
+    
+    df["PredictedChampion"] = predicted_champion if 'predicted_champion' in locals() else None
     
     return df
 
